@@ -6,17 +6,33 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
 class MedicalImageDataset(Dataset):
-    def __init__(self, metadata_path: str, image_dir: str, transform=None):
+    def __init__(self, metadata_path: str, image_dir: str, transform=None, label_col_idx: int = 1):
         """
         Args:
             metadata_path (str): Path to the excel metadata file.
             image_dir (str): Directory with all the preprocessed images.
             transform (callable, optional): Optional transform to be applied on a sample.
+            label_col_idx (int): Index of the column to use as the label/target.
         """
-        # Note: You will need openpyxl installed to read the excel file (pip install openpyxl).
-        self.metadata = pd.read_excel(metadata_path)
         self.image_dir = image_dir
         self.transform = transform
+        
+        # Load and clean metadata
+        raw_metadata = pd.read_excel(metadata_path)
+        # Drop rows where the first column is null or doesn't start with 'IMG'
+        # to skip the explanation headers at the beginning of Metadata.xlsx
+        raw_metadata = raw_metadata.dropna(subset=[raw_metadata.columns[0]])
+        self.metadata = raw_metadata[raw_metadata.iloc[:, 0].astype(str).str.startswith('IMG')].reset_index(drop=True)
+
+        self.label_col_idx = label_col_idx
+        
+        # Convert the selected label column to categorical integer IDs
+        # For example: 'MLOLT' -> 0, 'CCRT' -> 1, etc...
+        # If your objective is predicting Benign/Malignant, you'll want to change label_col_idx
+        # to the column that holds those values (e.g., column index 4 for Unnamed: 4).
+        labels = self.metadata.iloc[:, self.label_col_idx].astype(str)
+        self.classes = sorted(labels.unique())
+        self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
 
     def __len__(self):
         return len(self.metadata)
@@ -27,7 +43,7 @@ class MedicalImageDataset(Dataset):
 
         # NOTE: You must adjust the column indices depending on the Metadata.xlsx structure.
         # Here we assume the first column (index 0) is the filename/id and second (index 1) is the label.
-        img_name = str(self.metadata.iloc[idx, 0])
+        img_name = str(self.metadata.iloc[idx, 0]).strip()
         
         # Ensure the extension matches the preprocessed images
         if not img_name.endswith('.png'):
@@ -44,8 +60,9 @@ class MedicalImageDataset(Dataset):
         # Add channel dimension (C, H, W) for PyTorch
         image = np.expand_dims(image, axis=0)
 
-        # Target label (adjust index based on your Excel file)
-        label = self.metadata.iloc[idx, 1]
+        # Target label mapped to integer
+        raw_label = str(self.metadata.iloc[idx, self.label_col_idx])
+        label = self.class_to_idx[raw_label]
 
         # Apply optional transforms
         if self.transform:
@@ -60,11 +77,11 @@ class MedicalImageDataset(Dataset):
 
         return image_tensor, label_tensor
 
-def get_dataloader(metadata_path: str, image_dir: str, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0):
+def get_dataloader(metadata_path: str, image_dir: str, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0, label_col_idx: int = 1):
     """
     Creates and returns a PyTorch DataLoader.
     """
-    dataset = MedicalImageDataset(metadata_path, image_dir)
+    dataset = MedicalImageDataset(metadata_path, image_dir, label_col_idx=label_col_idx)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
     
     return dataloader
