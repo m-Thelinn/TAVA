@@ -23,7 +23,7 @@ def clahe_contrast(image: np.ndarray, clip_limit:float = 0.5, tile_grid_size:tup
     clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
     return clahe.apply(image)
 
-def preprocess_image(image: np.ndarray) -> np.ndarray:
+def preprocess_image(image: str) -> np.ndarray:
     
     image = load_image(image)
     image = gaussian_denoising(image)
