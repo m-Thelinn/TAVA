@@ -17,6 +17,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
+from preprocessing.pipeline import load_image
 
 
 # ──────────────────────────── Default paths ────────────────────────────
@@ -57,9 +58,14 @@ class SegmentationDataset(Dataset):
 
     def __getitem__(self, idx: int):
         # ── Image ──
-        image = cv2.imread(self.image_paths[idx], cv2.IMREAD_GRAYSCALE)
+        try:
+            image = load_image(self.image_paths[idx])
+        except Exception:
+            raise FileNotFoundError(f"Image not found or could not be loaded: {self.image_paths[idx]}")
+        
         if image is None:
-            raise FileNotFoundError(f"Image not found: {self.image_paths[idx]}")
+            raise FileNotFoundError(f"Image not found or could not be loaded: {self.image_paths[idx]}")
+        
         image = cv2.resize(image, self.image_size[::-1])  # cv2 uses (W, H)
         image = image.astype(np.float32) / 255.0
         image = torch.from_numpy(image).unsqueeze(0)  # (1, H, W)
