@@ -17,6 +17,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
+import albumentations as A
+
 from preprocessing.pipeline import load_image
 
 
@@ -47,11 +49,13 @@ class SegmentationDataset(Dataset):
         image_paths: list[str],
         mask_paths: list[Optional[str]],
         image_size: tuple[int, int] = (256, 256),
+        transform: Optional[A.Compose] = None,
     ):
         assert len(image_paths) == len(mask_paths)
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.image_size = image_size
+        self.transform = transform
 
     def __len__(self) -> int:
         return len(self.image_paths)
@@ -65,10 +69,6 @@ class SegmentationDataset(Dataset):
         
         if image is None:
             raise FileNotFoundError(f"Image not found or could not be loaded: {self.image_paths[idx]}")
-        
-        image = cv2.resize(image, self.image_size[::-1])  # cv2 uses (W, H)
-        image = image.astype(np.float32) / 255.0
-        image = torch.from_numpy(image).unsqueeze(0)  # (1, H, W)
 
         # ── Mask ──
         mask_path = self.mask_paths[idx]
@@ -76,11 +76,28 @@ class SegmentationDataset(Dataset):
             mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
             if mask is None:
                 raise FileNotFoundError(f"Mask not found: {mask_path}")
-            mask = cv2.resize(mask, self.image_size[::-1])
         else:
-            mask = np.zeros(self.image_size, dtype=np.uint8)
+            mask = np.zeros(image.shape[:2], dtype=np.uint8)
 
+        # Apply Albumentations if provided
+        if self.transform is not None:
+            augmented = self.transform(image=image, mask=mask)
+            image = augmented['image']
+            mask = augmented['mask']
+        else:
+            image = cv2.resize(image, self.image_size[::-1])
+            mask = cv2.resize(mask, self.image_size[::-1])
+
+        # Normalize to [0, 1]
+        image = image.astype(np.float32) / 255.0
         mask = (mask > 0).astype(np.float32)  # binarize
+
+        # Convert to Tensor (handling both Grayscale and RGB images safely)
+        if len(image.shape) == 2:
+            image = torch.from_numpy(image).unsqueeze(0)  # (1, H, W)
+        else:
+            image = torch.from_numpy(image).permute(2, 0, 1)  # (C, H, W)
+            
         mask = torch.from_numpy(mask).unsqueeze(0)  # (1, H, W)
 
         return image, mask
@@ -160,6 +177,20 @@ def get_dataloaders(
         random_state=random_state,
     )
 
+    # ── Albumentations Transforms ──
+    train_transform = A.Compose([
+        A.Resize(height=image_size[0], width=image_size[1]),
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
+        A.RandomRotate90(p=0.5),
+        A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=45, p=0.5),
+        A.ElasticTransform(p=0.3, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
+    ])
+
+    val_test_transform = A.Compose([
+        A.Resize(height=image_size[0], width=image_size[1]),
+    ])
+
     splits = {
         "train": (img_train, mask_train),
         "val":   (img_val,   mask_val),
@@ -168,7 +199,10 @@ def get_dataloaders(
 
     dataloaders: dict[str, DataLoader] = {}
     for split_name, (img_list, msk_list) in splits.items():
-        ds = SegmentationDataset(img_list, msk_list, image_size=image_size)
+        # Apply intense augmentation only for training
+        transform = train_transform if split_name == "train" else val_test_transform
+        ds = SegmentationDataset(img_list, msk_list, image_size=image_size, transform=transform)
+        
         dataloaders[split_name] = DataLoader(
             ds,
             batch_size=batch_size,
