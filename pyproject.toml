@@ -11,6 +11,9 @@ dependencies = [
     "openpyxl",
     "scikit-learn",
     "pandas>=3.0.1",
+    "transformers>=4.40.0",
+    "albumentations>=1.3.0",
+    "matplotlib",
 ]
 
 [build-system]
