@@ -10,7 +10,7 @@ class Config:
 
     # Training hyperparameters
     BATCH_SIZE: int = 16
-    NUM_EPOCHS: int = 100
+    NUM_EPOCHS: int = 50
     LEARNING_RATE: float = 1e-4
     WEIGHT_DECAY: float = 1e-4
     IMAGE_SIZE: int = 256
