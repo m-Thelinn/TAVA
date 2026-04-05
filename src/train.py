@@ -21,7 +21,7 @@ def epoch_train(model: nn.Module, dataloader: DataLoader, criterion: nn.Module, 
         images = images.to(device)
         masks = masks.to(device)
 
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
 
         outputs = model(images)
         loss = criterion(outputs, masks)
@@ -113,7 +113,11 @@ def train(model: nn.Module, dataloaders: dict[str, DataLoader], criterion: nn.Mo
         if val_dice > best_val_dice:
             best_val_dice = val_dice
             patience_counter = 0
-            torch.save(model.state_dict(), os.path.join(save_dir, "best_model.pth"))
+            torch.save({
+                "epoch": epoch + 1,
+                "model_state_dict": model.state_dict(),
+                "best_val_dice": best_val_dice,
+            }, os.path.join(save_dir, "best_model.pth"))
         else:
             patience_counter += 1
 

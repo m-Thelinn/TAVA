@@ -11,7 +11,7 @@ from preprocessing.dataloader import get_dataloaders
 from train import train
 from metrics.loss import DiceLoss, CombinedBCEDiceLoss, FocalLoss, CombinedFocalDiceLoss
 from models.segformer import SegFormer
-from metrics.metrics import dice_score, iou_score
+from models.deeplabv3plus import DeepLabV3Plus
 
 
 # Import configuration dataclass
@@ -36,8 +36,9 @@ def main():
     if cfg.MODEL_TYPE == "segformer":
         print("[Model] Initializing Transformer-based model (SegFormer-B2).")
         model = SegFormer(num_classes=1).to(device)
-    else:
-        raise ValueError(f"Model {cfg.MODEL_TYPE} not yet configured in pipeline.py.")
+    elif cfg.MODEL_TYPE == "deeplabv3plus":
+        print("[Model] Initializing CNN-based model (DeepLabV3+).")
+        model = DeepLabV3Plus(num_classes=1).to(device)
 
     print("\n--- Setup Optimization ---")
     if cfg.CRITERION == "dice_loss":
@@ -48,8 +49,6 @@ def main():
         criterion = FocalLoss().to(device)
     elif cfg.CRITERION == "combined_focal_dice_loss":
         criterion = CombinedFocalDiceLoss().to(device)
-    else:
-        raise ValueError(f"Criterion {cfg.CRITERION} not yet configured in pipeline.py.")
     
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.LEARNING_RATE, weight_decay=cfg.WEIGHT_DECAY)
 

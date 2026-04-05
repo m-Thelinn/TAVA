@@ -4,9 +4,18 @@ from dataclasses import dataclass
 @dataclass
 class Config:
     """Configuration class for the Segmentation Pipeline."""
-    
+
+    # ── Valid options ──────────────────────────────────────
+    VALID_MODELS: tuple = ("segformer", "deeplabv3plus")
+    VALID_CRITERIA: tuple = (
+        "dice_loss",
+        "combined_bce_dice_loss",
+        "focal_loss",
+        "combined_focal_dice_loss",
+    )
+
     # Model settings
-    MODEL_TYPE: str = "segformer"
+    MODEL_TYPE: str = "deeplabv3plus"
 
     # Training hyperparameters
     BATCH_SIZE: int = 16
@@ -22,9 +31,28 @@ class Config:
     MAX_GRAD_NORM: float = 1.0
 
     # Loss function
-    # Options: "dice_loss", "combined_bce_dice_loss", "focal_loss", "combined_focal_dice_loss"
-    CRITERION: str = "focal_loss"
+    CRITERION: str = "dice_loss"
 
     # Hardware / Paths
     DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
     SAVE_DIR: str = "outputs/experiments"
+
+    def __post_init__(self):
+        if self.MODEL_TYPE not in self.VALID_MODELS:
+            raise ValueError(
+                f"MODEL_TYPE '{self.MODEL_TYPE}' is not supported. "
+                f"Choose from: {self.VALID_MODELS}"
+            )
+        if self.CRITERION not in self.VALID_CRITERIA:
+            raise ValueError(
+                f"CRITERION '{self.CRITERION}' is not supported. "
+                f"Choose from: {self.VALID_CRITERIA}"
+            )
+        if self.BATCH_SIZE <= 0:
+            raise ValueError("BATCH_SIZE must be a positive integer.")
+        if self.NUM_EPOCHS <= 0:
+            raise ValueError("NUM_EPOCHS must be a positive integer.")
+        if self.LEARNING_RATE <= 0:
+            raise ValueError("LEARNING_RATE must be positive.")
+        if self.IMAGE_SIZE <= 0:
+            raise ValueError("IMAGE_SIZE must be a positive integer.")
