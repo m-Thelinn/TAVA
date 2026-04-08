@@ -9,7 +9,9 @@ class DiceLoss(nn.Module):
         self.smooth = smooth
 
     def forward(self, logits, targets):
-        return 1.0 - dice_score(logits, targets, smooth=self.smooth)
+        # threshold=None → Dice suave para que los gradientes fluyan correctamente
+        return 1.0 - dice_score(logits, targets, smooth=self.smooth, threshold=None)
+
 
 
 class CombinedBCEDiceLoss(nn.Module):

@@ -11,6 +11,8 @@ dependencies = [
     "openpyxl",
     "scikit-learn",
     "pandas>=3.0.1",
+    "albumentations",
+    "segmentation-models-pytorch"
 ]
 
 [build-system]
