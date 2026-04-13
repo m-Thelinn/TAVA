@@ -54,6 +54,13 @@ def main():
     elif cfg.MODEL_TYPE == "deeplabv3plus":
         print("[Model] Initializing CNN-based model (DeepLabV3+).")
         model = DeepLabV3Plus(num_classes=1).to(device)
+    elif cfg.MODEL_TYPE == "unet":
+        print("[Model] Initializing CNN-based model (UNet).")
+        from models.unet import UNet
+        model = UNet(n_channels=1, n_classes=1).to(device)
+    else:
+        # Placeholder for other models (Transformer, etc.)
+        raise ValueError(f"Model {cfg.MODEL_TYPE} not yet configured in pipeline.py.")
 
     print("\n--- Setup Optimization ---")
     if cfg.CRITERION == "dice_loss":

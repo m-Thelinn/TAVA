@@ -17,7 +17,8 @@ class Config:
     )
 
     # Model settings
-    MODEL_TYPE: str = "deeplabv3plus"
+    # Options: "deeplabv3plus", "unet"
+    MODEL_TYPE: str = "unet"
 
     # Training hyperparameters
     BATCH_SIZE: int = 8
@@ -33,7 +34,8 @@ class Config:
     MAX_GRAD_NORM: float = 1.0
 
     # Loss function
-    CRITERION: str = "dice_loss"
+    # Options: "dice_loss", "combined_bce_dice_loss", "focal_loss", "combined_focal_dice_loss"
+    CRITERION: str = "combined_focal_dice_loss"
 
     # Hardware / Paths
     DEVICE: str = (

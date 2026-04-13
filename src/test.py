@@ -305,6 +305,11 @@ if __name__ == "__main__":
         model = SegFormer(num_classes=1).to(device)
     elif cfg.MODEL_TYPE == "deeplabv3plus":
         model = DeepLabV3Plus(num_classes=1).to(device)
+    elif cfg.MODEL_TYPE == "unet":
+        from models.unet import UNet
+        model = UNet(n_channels=1, n_classes=1).to(device)
+    else:
+        raise ValueError(f"Model {cfg.MODEL_TYPE} not supported.")
         
     print("\n--- Setup Optimization ---")
     if cfg.CRITERION == "dice_loss":
