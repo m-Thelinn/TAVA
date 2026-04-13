@@ -212,22 +212,16 @@ def get_dataloaders(
             border_mode=0,
             p=0.5
         ),
-        # Intensity variation
+        # Intensity variation — mimics acquisition-to-acquisition exposure/calibration differences
         A.RandomBrightnessContrast(
-            brightness_limit=0.08,
-            contrast_limit=0.08,
-            p=0.3
+            brightness_limit=0.10,
+            contrast_limit=0.10,
+            p=0.4
         ),
         # Mild acquisition noise
         A.GaussNoise(
             std_range=(0.01, 0.03),
             mean_range=(0.0, 0.0),
-            p=0.2
-        ),
-        # Local contrast enhancement
-        A.CLAHE(
-            clip_limit=(1.0, 2.0),
-            tile_grid_size=(8, 8),
             p=0.2
         ),
     ])

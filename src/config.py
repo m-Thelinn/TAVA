@@ -12,6 +12,8 @@ class Config:
         "combined_bce_dice_loss",
         "focal_loss",
         "combined_focal_dice_loss",
+        "tversky_loss",
+        "combined_focal_tversky_loss",
     )
 
     # Model settings
@@ -20,13 +22,13 @@ class Config:
 
     # Training hyperparameters
     BATCH_SIZE: int = 8
-    NUM_EPOCHS: int = 50
-    LEARNING_RATE: float = 5e-5  # Estándar para fine-tuning con backbone preentrenado
+    NUM_EPOCHS: int = 100
+    LEARNING_RATE: float = 1e-4
     WEIGHT_DECAY: float = 1e-4
     IMAGE_SIZE: int = 256
 
     # Early stopping
-    EARLY_STOPPING_PATIENCE: int = 15
+    EARLY_STOPPING_PATIENCE: int = 20
 
     # Gradient clipping
     MAX_GRAD_NORM: float = 1.0
@@ -36,7 +38,11 @@ class Config:
     CRITERION: str = "combined_focal_dice_loss"
 
     # Hardware / Paths
-    DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
+    DEVICE: str = (
+        "cuda" if torch.cuda.is_available()
+        else "xpu" if hasattr(torch, 'xpu') and torch.xpu.is_available()
+        else "cpu"
+    )
     SAVE_DIR: str = "outputs/experiments"
 
     def __post_init__(self):

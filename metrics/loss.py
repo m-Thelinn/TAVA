@@ -66,3 +66,44 @@ class CombinedFocalDiceLoss(nn.Module):
         focal_loss = self.focal(logits, targets)
         dice_loss = self.dice(logits, targets)
         return self.focal_weight * focal_loss + self.dice_weight * dice_loss
+
+
+class TverskyLoss(nn.Module):
+    """
+    Tversky Loss: generalización del Dice que penaliza asimétricamente
+    falsos negativos (alpha) y falsos positivos (beta).
+    Para favorecer recall: alpha=0.7, beta=0.3
+    """
+    def __init__(self, alpha=0.7, beta=0.3, smooth=1.0):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.smooth = smooth
+
+    def forward(self, logits, targets):
+        probs = torch.sigmoid(logits)
+        probs_flat = probs.view(-1)
+        targets_flat = targets.view(-1).float()
+        tp = (probs_flat * targets_flat).sum()
+        fp = (probs_flat * (1 - targets_flat)).sum()
+        fn = ((1 - probs_flat) * targets_flat).sum()
+        tversky = (tp + self.smooth) / (tp + self.alpha * fn + self.beta * fp + self.smooth)
+        return 1.0 - tversky
+
+
+class CombinedFocalTverskyLoss(nn.Module):
+    """
+    Combinación de FocalLoss + TverskyLoss.
+    Ideal para datasets médicos con bajo recall y desbalance de píxeles.
+    """
+    def __init__(self, focal_weight=0.4, tversky_weight=0.6,
+                 alpha=0.7, beta=0.3, gamma=2.0):
+        super().__init__()
+        self.focal = FocalLoss(alpha=1.0 - alpha, gamma=gamma)
+        self.tversky = TverskyLoss(alpha=alpha, beta=beta)
+        self.focal_weight = focal_weight
+        self.tversky_weight = tversky_weight
+
+    def forward(self, logits, targets):
+        return (self.focal_weight * self.focal(logits, targets) +
+                self.tversky_weight * self.tversky(logits, targets))
