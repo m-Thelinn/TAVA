@@ -1,0 +1,2 @@
+test_loss,test_dice,test_iou,inference_total_s,inference_per_image_ms
+0.5012177109718323,0.49878227710723877,0.35699589252471925,1.65,21.486

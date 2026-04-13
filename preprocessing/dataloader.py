@@ -50,28 +50,54 @@ class SegmentationDataset(Dataset):
         mask_paths: list[Optional[str]],
         image_size: tuple[int, int] = (256, 256),
         transform: Optional[A.Compose] = None,
+        augment_ratio: float = 0.0,
     ):
         assert len(image_paths) == len(mask_paths)
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.image_size = image_size
         self.transform = transform
+        self.augment_ratio = augment_ratio
+        self._n_real = len(image_paths)
+
+        # Randomly select which images get an augmented copy
+        if augment_ratio > 0:
+            rng = np.random.RandomState(42)
+            n_aug = int(self._n_real * augment_ratio)
+            self._aug_indices = sorted(
+                rng.choice(self._n_real, size=n_aug, replace=False).tolist()
+            )
+        else:
+            self._aug_indices = []
+
+        # Base transform: resize only (used for the original copy)
+        self._base_transform = A.Compose([
+            A.Resize(height=image_size[0], width=image_size[1]),
+        ])
 
     def __len__(self) -> int:
-        return len(self.image_paths)
+        return self._n_real + len(self._aug_indices)
 
     def __getitem__(self, idx: int):
+        # First N indices -> original (resize only)
+        # Remaining indices -> augmented copies of selected images
+        is_augmented = idx >= self._n_real
+        if is_augmented:
+            real_idx = self._aug_indices[idx - self._n_real]
+        else:
+            real_idx = idx
+
         # ── Image ──
         try:
-            image = load_image(self.image_paths[idx])
+            image = load_image(self.image_paths[real_idx])
         except Exception:
-            raise FileNotFoundError(f"Image not found or could not be loaded: {self.image_paths[idx]}")
-        
+            raise FileNotFoundError(f"Image not found or could not be loaded: {self.image_paths[real_idx]}")
+
         if image is None:
-            raise FileNotFoundError(f"Image not found or could not be loaded: {self.image_paths[idx]}")
+            raise FileNotFoundError(f"Image not found or could not be loaded: {self.image_paths[real_idx]}")
 
         # ── Mask ──
-        mask_path = self.mask_paths[idx]
+        mask_path = self.mask_paths[real_idx]
         if mask_path is not None:
             mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
             if mask is None:
@@ -79,14 +105,13 @@ class SegmentationDataset(Dataset):
         else:
             mask = np.zeros(image.shape[:2], dtype=np.uint8)
 
-        # Apply Albumentations if provided
-        if self.transform is not None:
+        # Apply transform: augmentation for the second copy, resize-only for the first
+        if is_augmented and self.transform is not None:
             augmented = self.transform(image=image, mask=mask)
-            image = augmented['image']
-            mask = augmented['mask']
         else:
-            image = cv2.resize(image, self.image_size[::-1])
-            mask = cv2.resize(mask, self.image_size[::-1])
+            augmented = self._base_transform(image=image, mask=mask)
+        image = augmented['image']
+        mask = augmented['mask']
 
         # Normalize to [0, 1]
         image = image.astype(np.float32) / 255.0
@@ -97,7 +122,7 @@ class SegmentationDataset(Dataset):
             image = torch.from_numpy(image).unsqueeze(0)  # (1, H, W)
         else:
             image = torch.from_numpy(image).permute(2, 0, 1)  # (C, H, W)
-            
+
         mask = torch.from_numpy(mask).unsqueeze(0)  # (1, H, W)
 
         return image, mask
@@ -168,7 +193,7 @@ def get_dataloaders(
             random_state=random_state,
         )
 
-    # ── Split val+test into val and test ──
+    # Split val+test into val and test
     relative_test = test_ratio / val_test_ratio
     img_val, img_test, mask_val, mask_test = train_test_split(
         img_valtest, mask_valtest,
@@ -177,14 +202,34 @@ def get_dataloaders(
         random_state=random_state,
     )
 
-    # ── Albumentations Transforms ──
+    # Albumentations Transforms
     train_transform = A.Compose([
         A.Resize(height=image_size[0], width=image_size[1]),
-        A.HorizontalFlip(p=0.5),
-        A.VerticalFlip(p=0.5),
-        A.RandomRotate90(p=0.5),
-        A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=45, p=0.5),
-        A.ElasticTransform(p=0.3, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
+        A.ShiftScaleRotate(
+            shift_limit=0.05,
+            scale_limit=0.10,
+            rotate_limit=10,
+            border_mode=0,
+            p=0.5
+        ),
+        # Intensity variation
+        A.RandomBrightnessContrast(
+            brightness_limit=0.08,
+            contrast_limit=0.08,
+            p=0.3
+        ),
+        # Mild acquisition noise
+        A.GaussNoise(
+            std_range=(0.01, 0.03),
+            mean_range=(0.0, 0.0),
+            p=0.2
+        ),
+        # Local contrast enhancement
+        A.CLAHE(
+            clip_limit=(1.0, 2.0),
+            tile_grid_size=(8, 8),
+            p=0.2
+        ),
     ])
 
     val_test_transform = A.Compose([
@@ -199,9 +244,16 @@ def get_dataloaders(
 
     dataloaders: dict[str, DataLoader] = {}
     for split_name, (img_list, msk_list) in splits.items():
-        # Apply intense augmentation only for training
-        transform = train_transform if split_name == "train" else val_test_transform
-        ds = SegmentationDataset(img_list, msk_list, image_size=image_size, transform=transform)
+        is_train = split_name == "train"
+        transform = train_transform if is_train else val_test_transform
+
+        ds = SegmentationDataset(
+            img_list,
+            msk_list,
+            image_size=image_size,
+            transform=transform,
+            augment_ratio=0.7 if is_train else 0.0,  # 70% get augmented copy
+        )
         
         dataloaders[split_name] = DataLoader(
             ds,
