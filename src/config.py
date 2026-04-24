@@ -6,7 +6,7 @@ class Config:
     """Configuration class for the Segmentation Pipeline."""
 
     # ── Valid options ──────────────────────────────────────
-    VALID_MODELS: tuple = ("segformer", "deeplabv3plus")
+    VALID_MODELS: tuple = ("segformer", "deeplabv3plus", "unet")
     VALID_CRITERIA: tuple = (
         "dice_loss",
         "combined_bce_dice_loss",
