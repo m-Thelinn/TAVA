@@ -19,6 +19,7 @@ from metrics.loss import (
 )
 from models.segformer import SegFormer
 from models.deeplabv3plus import DeepLabV3Plus
+from models.swin_unet import SwinUNet
 
 
 # Import configuration dataclass
@@ -58,6 +59,9 @@ def main():
         print("[Model] Initializing CNN-based model (UNet).")
         from models.unet import UNet
         model = UNet(n_channels=1, n_classes=1).to(device)
+    elif cfg.MODEL_TYPE == "swinunet":
+        print(f"[Model] Initializing Swin-UNet for {cfg.IMAGE_SIZE}x{cfg.IMAGE_SIZE}")
+        model = SwinUNet(num_classes=1).to(device)
     else:
         # Placeholder for other models (Transformer, etc.)
         raise ValueError(f"Model {cfg.MODEL_TYPE} not yet configured in pipeline.py.")
@@ -83,6 +87,7 @@ def main():
 
     # Mejora 3: differential LR for DeepLabV3+ backbone vs decoder/ASPP
     is_deeplab = isinstance(model, DeepLabV3Plus)
+    is_swin = isinstance(model, SwinUNet)
     if is_deeplab:
         print("[Optimizer] Using differential LR: backbone=LR*0.1, decoder+ASPP=LR")
         backbone_params = list(model.low_level_features.parameters()) + \
@@ -94,8 +99,16 @@ def main():
                 {"params": backbone_params, "lr": cfg.LEARNING_RATE * 0.1},
                 {"params": decoder_params,  "lr": cfg.LEARNING_RATE},
             ],
-            weight_decay=cfg.WEIGHT_DECAY,
-        )
+            weight_decay=cfg.WEIGHT_DECAY)
+    elif is_swin:
+        print("[Optimizer] Using differential LR for Swin-UNet encoder.")
+        encoder_params = list(model.encoder.parameters())
+        encoder_ids = {id(p) for p in encoder_params}
+        decoder_params = [p for p in model.parameters() if id(p) not in encoder_ids]
+        optimizer = torch.optim.AdamW([
+                {"params": encoder_params, "lr": cfg.LEARNING_RATE * 0.1},
+                {"params": decoder_params, "lr": cfg.LEARNING_RATE},
+            ], weight_decay=cfg.WEIGHT_DECAY)
     else:
         optimizer = torch.optim.AdamW(
             model.parameters(), lr=cfg.LEARNING_RATE, weight_decay=cfg.WEIGHT_DECAY

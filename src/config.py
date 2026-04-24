@@ -6,7 +6,7 @@ class Config:
     """Configuration class for the Segmentation Pipeline."""
 
     # ── Valid options ──────────────────────────────────────
-    VALID_MODELS: tuple = ("segformer", "deeplabv3plus", "unet")
+    VALID_MODELS: tuple = ("segformer", "deeplabv3plus", "unet", "swinunet")
     VALID_CRITERIA: tuple = (
         "dice_loss",
         "combined_bce_dice_loss",
@@ -18,7 +18,7 @@ class Config:
 
     # Model settings
     # Options: "deeplabv3plus", "unet"
-    MODEL_TYPE: str = "unet"
+    MODEL_TYPE: str = "swinunet"
 
     # Training hyperparameters
     BATCH_SIZE: int = 8
@@ -35,7 +35,7 @@ class Config:
 
     # Loss function
     # Options: "dice_loss", "combined_bce_dice_loss", "focal_loss", "combined_focal_dice_loss"
-    CRITERION: str = "combined_focal_dice_loss"
+    CRITERION: str = "dice_loss"
 
     # Hardware / Paths
     DEVICE: str = (

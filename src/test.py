@@ -289,6 +289,7 @@ if __name__ == "__main__":
     from preprocessing.dataloader import get_dataloaders
     from models.segformer import SegFormer
     from models.deeplabv3plus import DeepLabV3Plus
+    from models.swin_unet import SwinUNet
     from metrics.loss import DiceLoss, CombinedBCEDiceLoss, FocalLoss, CombinedFocalDiceLoss
 
     cfg = Config()
@@ -308,6 +309,8 @@ if __name__ == "__main__":
     elif cfg.MODEL_TYPE == "unet":
         from models.unet import UNet
         model = UNet(n_channels=1, n_classes=1).to(device)
+    elif cfg.MODEL_TYPE == "swinunet":
+        model = SwinUNet(num_classes=1).to(device)
     else:
         raise ValueError(f"Model {cfg.MODEL_TYPE} not supported.")
         
